@@ -97,7 +97,7 @@ class GPT(nn.Module):
         )
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
     
-    def forward(self, idx):
+    def forward(self, idx, targets=None):
         # idx is in the shape of (B, T)
         B, T = idx.size()
         assert T <= self.config.block_size, f"Cannot forward sequence of length {T}, block size is only {self.config.block_size}"
@@ -115,7 +115,11 @@ class GPT(nn.Module):
         # forward the final layer norm
         x = self.transformer.ln_f(x)
         logits = self.lm_head(x) # (B, T, vocab_size)
-        return logits
+        loss = None
+        if targets is not None: 
+            targets = targets.view(B*T)
+            loss = F.cross_entropy(logits.view(B*T, logits.size(-1)), targets)
+        return logits, loss
     
     @classmethod
     def from_pretrained(cls, model_type: str):
@@ -169,25 +173,32 @@ class GPT(nn.Module):
         return model
 
 # -----------------------------------------------------------------------------
+device = 'cuda'
+device = 'cpu'
 num_return_sequences = 3
 max_length = 30
 
-# Set all random seeds for reproducibility
-torch.manual_seed(42)
-torch.cuda.manual_seed(42)
-torch.backends.cudnn.deterministic = True
 
-model = GPT.from_pretrained('gpt2')
-model.eval() # helpful when no training
-model.to('cuda')
 
-# prefix tokens
 import tiktoken
 enc = tiktoken.get_encoding("gpt2")
-tokens = enc.encode("Hello, I'm a GPT-2 model")
-tokens = torch.tensor(tokens, dtype=torch.long) # (8,)
-tokens = tokens.unsqueeze(0).repeat(num_return_sequences, 1) #(3, 8)
-x = tokens.to('cuda')
+with open("dataset/input.txt", "r") as f:
+    text = f.read()
+text = text[:1000]
+tokens = enc.encode(text)
+
+B, T = 4, 32
+buf = torch.tensor(tokens[:B*T + 1], dtype=torch.long)
+x = buf[:-1].view(B, T)
+y = buf[1:].view(B, T)
+
+# get the logits
+model = GPT.from_pretrained('gpt2')
+model.to(device)
+logits, loss = model(x, y)
+assert logits.size() == (B, T, 50257), logits.size()
+print(loss)
+import sys; sys.exit(0)
 
 while x.size(1) < max_length:
     with torch.no_grad():
