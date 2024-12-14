@@ -174,11 +174,8 @@ class GPT(nn.Module):
 
 # -----------------------------------------------------------------------------
 device = 'cuda'
-device = 'cpu'
 num_return_sequences = 3
 max_length = 30
-
-
 
 import tiktoken
 enc = tiktoken.get_encoding("gpt2")
@@ -189,15 +186,27 @@ tokens = enc.encode(text)
 
 B, T = 4, 32
 buf = torch.tensor(tokens[:B*T + 1], dtype=torch.long)
+buf = buf.to(device)
 x = buf[:-1].view(B, T)
 y = buf[1:].view(B, T)
 
 # get the logits
 model = GPT.from_pretrained('gpt2')
 model.to(device)
-logits, loss = model(x, y)
-assert logits.size() == (B, T, 50257), logits.size()
-print(loss)
+# logits, loss = model(x, y)
+# assert logits.size() == (B, T, 50257), logits.size()
+# print(loss)
+ 
+# optimize for 50 steps
+optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
+for i in range(50):
+    optimizer.zero_grad()
+    logits, loss = model(x, y)
+    loss.backward()
+    optimizer.step()
+    print(f"step {i}: loss: {loss.item():.8f}")
+
+
 import sys; sys.exit(0)
 
 while x.size(1) < max_length:
