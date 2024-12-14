@@ -173,33 +173,52 @@ class GPT(nn.Module):
         return model
 
 # -----------------------------------------------------------------------------
+import tiktoken
+class DataLoaderLite:
+    def __init__(self, B, T):
+        self.B = B
+        self.T = T
+
+        with open("dataset/input.txt", "r") as f:
+            text = f.read()
+        enc = tiktoken.get_encoding("gpt2")
+        tokens = enc.encode(text)
+        self.tokens = torch.tensor(tokens)
+        print(f"Loaded {len(self.tokens)} tokens")
+        print(f"1 epoch = {len(self.tokens) // (self.B * self.T)} batches")
+
+        # state
+        self.current_idx = 0
+    
+    def next_batch(self):
+        B, T = self.B, self.T
+        buf = self.tokens[self.current_idx : self.current_idx + B * T + 1]
+        self.current_idx += B * T
+
+        x = buf[:-1].view(B, T)
+        y = buf[1:].view(B, T)
+
+        if self.current_idx + B * T + 1 > len(self.tokens):
+            self.current_idx = 0
+        return x, y
+
+# --- training ----------------------------------------------------------------
 device = 'cuda'
 num_return_sequences = 3
 max_length = 30
+print(f'using device: {device}')
 
-import tiktoken
-enc = tiktoken.get_encoding("gpt2")
-with open("dataset/input.txt", "r") as f:
-    text = f.read()
-text = text[:1000]
-tokens = enc.encode(text)
-
-B, T = 4, 32
-buf = torch.tensor(tokens[:B*T + 1], dtype=torch.long)
-buf = buf.to(device)
-x = buf[:-1].view(B, T)
-y = buf[1:].view(B, T)
+train_loader = DataLoaderLite(B=4,  T=32) 
 
 # get the logits
 model = GPT.from_pretrained('gpt2')
 model.to(device)
-# logits, loss = model(x, y)
-# assert logits.size() == (B, T, 50257), logits.size()
-# print(loss)
  
 # optimize for 50 steps
 optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
 for i in range(50):
+    x, y = train_loader.next_batch()
+    x, y = x.to(device), y.to(device)
     optimizer.zero_grad()
     logits, loss = model(x, y)
     loss.backward()
