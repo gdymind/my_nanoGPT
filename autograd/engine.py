@@ -40,6 +40,12 @@ class Value:
         out._backward = _backward
         return out
 
+    def __neg__(self): # -a
+        return self * -1
+    
+    def __sub__(self, other): # a - b
+        return self + (-other)
+
     def __mul__(self, other): # a * b
         other = other if isinstance(other, Value) else Value(other) # support cases like "a * 2"
         out = Value(self.data * other.data, (self, other), '*')
@@ -55,12 +61,33 @@ class Value:
     def __rmul__(self, other): # support cases like "2 * a"
         return self * other
 
+    def __pow__(self, other): # support cases like "a ** 2"
+        assert isinstance(other, int) or isinstance(other, float), "Exponent must be int or float"
+        out = Value(self.data**other, (self, ), f'**{other}')
+        def _backward():
+            self.grad += out.grad * other * (self.data**(other-1))
+        out._backward = _backward
+        return out
+
+    def __truediv__(self, other): # support cases like "a / 2"
+        return self * other**-1
+
+    def __rtruediv__(self, other): # support cases like "2 / a"
+        return other / self
+
     def tanh(self):
         n = self.data
         t = (math.exp(2*n) - 1) / (math.exp(2*n) + 1)
         out = Value(t, (self, ), 'tanh')
         def _backward():
             self.grad += out.grad * (1 - t**2)
+        out._backward = _backward
+        return out
+    
+    def exp(self):
+        out = Value(math.exp(self.data), (self,), 'exp')
+        def _backward():
+            self.grad += out.grad * out.data
         out._backward = _backward
         return out
     
