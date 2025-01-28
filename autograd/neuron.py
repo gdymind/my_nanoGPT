@@ -1,4 +1,5 @@
 from engine import *
+import numpy as np
 
 class Neuron:
     def __init__(self, nin): # nin: number of inputs
@@ -16,7 +17,7 @@ class Layer:
     
     def __call__(self, x):
         outs = [n(x) for n in self.neurons]
-        return outs
+        return outs[0] if len(outs) == 1 else outs
 
 class MLP:
     def __init__(self, nin, nouts): # now we have multiple "number of outs"
