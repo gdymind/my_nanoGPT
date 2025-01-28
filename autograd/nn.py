@@ -1,5 +1,6 @@
 from engine import *
 import numpy as np
+import random
 
 class Neuron:
     def __init__(self, nin): # nin: number of inputs
